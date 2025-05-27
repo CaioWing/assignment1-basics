@@ -1,8 +1,9 @@
-from collections import defaultdict
+from collections import Counter, defaultdict
+from itertools import pairwise
+import mmap
 import regex as re
 import os
 from typing import BinaryIO
-from collections import Counter
 
 def find_chunk_boundaries(
     file: BinaryIO, 
@@ -48,6 +49,27 @@ def find_chunk_boundaries(
     # Make sure all boudaries are unique, but might be fewer than desired_num_chunks
     return sorted(set(chunk_boundaries))
 
+def count_chunk(chunk: bytes, SPLIT_RE: re.Pattern, PAT_RE: re.Pattern) -> Counter:
+    """
+    Count the words of a chunk of text
+    """
+    local = Counter()
+    for doc in SPLIT_RE.split(chunk):
+        local.update(PAT_RE.findall(doc))   
+    return local
+
+def count_words(path: str, SPLIT_RE: re.Pattern, PAT_RE: re.Pattern) -> Counter:
+    """
+    Count the words of a file
+    """
+    word_counts = Counter()
+    with open(path, "rb") as f, \
+         mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+
+        boundaries = find_chunk_boundaries(mm, os.cpu_count(), SPLIT_RE.pattern)
+        for start, end in zip(boundaries[:-1], boundaries[1:]):
+            word_counts += count_chunk(mm[start:end], SPLIT_RE, PAT_RE)
+    return word_counts
 
 def train_bpe(
         input_path : str,
@@ -71,39 +93,25 @@ def train_bpe(
     vocab = {i: bytes([i]) for i in range(256)}
     next_id = 256
     merges = []
-    word_counts = defaultdict(int)
+    word_counts = Counter()
 
     for token in special_tokens:
         vocab[next_id] = token.encode("utf-8")
         next_id += 1
 
     special_token_pattern = "|".join([re.escape(token) for token in special_tokens])
-    with open(input_path, "rb") as f:
-        num_processes = os.cpu_count()
-        boundaries = find_chunk_boundaries(f, num_processes, "<|endoftext|>".encode("utf-8"))
-        
-        for start, end in zip(boundaries[:-1], boundaries[1:]):
-            f.seek(start)
-            chunk = f.read(end - start).decode("utf-8", errors="ignore")
+    PAT_RE   = re.compile(PAT.encode("utf-8"))
+    SPLIT_RE = re.compile(special_token_pattern.encode("utf-8"))
 
-            # Removing special tokens before pre-tokenization
-            documents = re.split(special_token_pattern, chunk)
-            
-            for doc in documents:
-                for match in re.finditer(PAT, doc):
-                    word = match.group()
-                    word_bytes = word.encode("utf-8")
-                    word_counts[tuple(bytes([b]) for b in word_bytes)] += 1
+    word_counts = count_words(input_path, SPLIT_RE, PAT_RE)
+    word_counts = {tuple(bytes([b]) for b in k): v for k, v in word_counts.items()}
 
     while len(vocab) < vocab_size:
-        pair_freq = {}
+        pair_freq = defaultdict(int)
 
         for word_tuple, freq in word_counts.items():
-            for i in range(len(word_tuple) - 1):
-                pair = (word_tuple[i], word_tuple[i + 1])
-                if pair not in pair_freq:
-                    pair_freq[pair] = 0
-                pair_freq[pair] += freq
+            for pair in pairwise(word_tuple):  
+                pair_freq[pair] += freq 
 
         if not pair_freq:
             break
