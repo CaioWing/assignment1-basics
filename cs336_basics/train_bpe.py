@@ -58,7 +58,7 @@ def count_chunk(chunk: bytes, SPLIT_RE: re.Pattern, PAT_RE: re.Pattern) -> Count
         local.update(PAT_RE.findall(doc))   
     return local
 
-def count_words(path: str, SPLIT_RE: re.Pattern, PAT_RE: re.Pattern) -> Counter:
+def count_words(path: str, chunks : int, SPLIT_RE: re.Pattern, PAT_RE: re.Pattern) -> Counter:
     """
     Count the words of a file
     """
@@ -66,7 +66,7 @@ def count_words(path: str, SPLIT_RE: re.Pattern, PAT_RE: re.Pattern) -> Counter:
     with open(path, "rb") as f, \
          mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
 
-        boundaries = find_chunk_boundaries(mm, os.cpu_count(), SPLIT_RE.pattern)
+        boundaries = find_chunk_boundaries(mm, chunks, SPLIT_RE.pattern)
         for start, end in zip(boundaries[:-1], boundaries[1:]):
             word_counts += count_chunk(mm[start:end], SPLIT_RE, PAT_RE)
     return word_counts
@@ -103,7 +103,7 @@ def train_bpe(
     PAT_RE   = re.compile(PAT.encode("utf-8"))
     SPLIT_RE = re.compile(special_token_pattern.encode("utf-8"))
 
-    word_counts = count_words(input_path, SPLIT_RE, PAT_RE)
+    word_counts = count_words(input_path, chunk_size, SPLIT_RE, PAT_RE)
     word_counts = {tuple(bytes([b]) for b in k): v for k, v in word_counts.items()}
 
     while len(vocab) < vocab_size:
@@ -140,7 +140,14 @@ def train_bpe(
     return vocab, merges 
 
 if __name__ == "__main__":
-    from scalene import scalene_profiler
-    scalene_profiler.start()
-    vocab, merges = train_bpe("data/TinyStoriesV2-GPT4-valid.txt", 500, ["<|endoftext|>"])
-    scalene_profiler.stop()
+    text_dir = "data"
+    filepath = "TinyStoriesV2-GPT4-train.txt"
+    vocab, merges = train_bpe(f"{text_dir}/{filepath}", 10000, ["<|endoftext|>"])
+    with open(f"{filepath.split('.')[0]}.vocab.txt", "w") as f:
+        for k, v in vocab.items():
+            f.write(f"{k}: {v}\n")
+
+    with open(f"{filepath.split('.')[0]}.merges.txt", "w") as f:
+        for merge in merges:
+            f.write(f"{merge[0]} {merge[1]}\n")
+
