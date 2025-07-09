@@ -37,28 +37,32 @@ class Tokenizer:
         """
         Encode an input text into a sequence of token IDs.
         """
-        i = 0
+        encoding_vocab = {v: k for k, v in self.vocab.items()}
         if self.SPECIAL_TOKEN_PAT:
             text = self.SPECIAL_TOKEN_PAT.split(text)
 
         words = self.PRE_TOKENIZATION.findall(text)
         byte_words = [tuple(letter.encode("utf-8") for letter in word) for word in words]
-        
-        while i < len(self.merges):
-            for index, word in enumerate(byte_words):
-                new_word = []
-                for j in range(len(word)):
-                    if j < len(word) - 1 and (word[j], word[j + 1] == self.merges[i]):
-                        new_word.append(merges[i])
-                        i = 0
-                    else:
-                        new_word.append(word[j])
-                        i += 1
-                byte_words[index] = tuple(new_word)
-                breakpoint()
-                
+        encode = []
+
+        for word in byte_words:
+            new_word = []
+            idx = 0
             
-        return NotImplemented
+            while True:
+                while idx < len(word):
+                    if idx < len(word) - 1 and (word[idx], word[idx + 1]) in self.merges:
+                        new_word.append((word[idx] + word[idx + 1]))
+                        idx += 2
+                    else:
+                        new_word.append(word[idx])
+                        idx += 1
+                if word == tuple(new_word):
+                    encode.extend([encoding_vocab[token] for token in new_word])
+                    break
+                else:
+                    word = tuple(new_word.copy())
+        return encode
     
     def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
         """
@@ -79,4 +83,4 @@ if __name__ == "__main__":
     from cs336_basics.train_bpe import train_bpe
 
     vocab, merges = train_bpe(input_path="data/TinyStoriesV2-GPT4-valid.txt", vocab_size=1000, special_tokens=["<|endoftext|>"])
-    Tokenizer(vocab, merges).encode("Ola meu nome e caio")
+    Tokenizer(vocab, merges).encode("That's a time when I was young that everything was different, I dont recognize anymore")
