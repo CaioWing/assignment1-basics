@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+import json
 from typing import Iterator
 import regex as re
 
@@ -17,9 +18,12 @@ class Tokenizer:
         self.vocab            = vocab
         self.merges           = merges
         self.special_tokens   = special_tokens
+
+        self.SPACE_CHAR = '\u0120'
         self.PRE_TOKENIZATION = re.compile(r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""")
         self.SPECIAL_TOKEN_PAT= re.compile("|".join([re.escape(token) for token in special_tokens])) if special_tokens else None   
 
+    @classmethod
     def from_files(cls, vocab_filepath, merges_filepath, special_tokens=None):
         """
         Class method that constructs and return a Tokenizer from a serialized 
@@ -32,27 +36,21 @@ class Tokenizer:
             special_tokens: list[str] | None = None
         """
         with open(vocab_filepath, "rb") as f:
-            vocab = {}
-            for line in f:
-                line_split = line.decode('utf-8').split(": b")
-                key = line_split[0]
-                token_delimiter = line_split[-1][0]
-                token = line_split[-1][1:].rstrip(f"{token_delimiter}\n")
-                try:
-                    token = token.encode('utf-8').decode('unicode_escape').encode('utf-8')
-                except:
-                    token = token.encode('utf-8')
-                vocab[int(key)] = bytes(token)
-            
+            vocab = {k : v for v, k in json.load(f).items()}
+        
+        if special_tokens:
+            idx = len(vocab)
+            for s_t in special_tokens:
+                vocab[idx] = s_t
+                idx += 1
+
         with open(merges_filepath) as f:
             merges = []
             for line in f:
-                breakpoint()
-                matches = [m.encode('utf8') for m in re.findall(r"b'([^']*)'", line)]
-                breakpoint()
-                merges.extend([tuple(bytes(matches[0]), bytes(matches[1]))])
-        breakpoint()
-        return cls.__init__(vocab, merges, special_tokens)
+                token_1 = line.split(' ')[0]
+                token_2 = line.split(' ')[-1].replace('\n', '')
+                merges.extend([(token_1, token_2)])
+        return cls(vocab, merges, special_tokens)
 
     def encode(self, text: str) -> list[int]:
         """
@@ -63,10 +61,10 @@ class Tokenizer:
             text = self.SPECIAL_TOKEN_PAT.split(text)
 
         words = self.PRE_TOKENIZATION.findall(text)
-        byte_words = [tuple(letter.encode("utf-8") for letter in word) for word in words]
         encode = []
 
-        for word in byte_words:
+        for word in words:
+            word = word.replace(' ', self.SPACE_CHAR)
             new_word = []
             idx = 0
             
@@ -105,5 +103,10 @@ if __name__ == "__main__":
 
     # vocab, merges = train_bpe(input_path="data/TinyStoriesV2-GPT4-valid.txt", vocab_size=1000, special_tokens=["<|endoftext|>"])
     # Tokenizer(vocab, merges).encode("That's a time when I was young that everything was different, I dont recognize anymore")
-    tokenizer = Tokenizer.from_files(Tokenizer, "vocab.txt", "merges.txt")
+    tokenizer = Tokenizer.from_files( 
+        "TinyStoriesV2-GPT4-train.vocab.json", 
+        "TinyStoriesV2-GPT4-train.merges.txt"
+        )
+    
+    test = tokenizer.encode("ay That's a time when I was young that everything was different, I dont recognize anymore")
     breakpoint()
