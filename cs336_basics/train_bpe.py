@@ -89,15 +89,22 @@ def train_bpe(
     """
     # GPT-2 regex-based pre-tokenizer
     PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
-
-    vocab = {i: bytes([i]) for i in range(256)}
-    next_id = 256
+    vocab = {}
+    next_id = 0
     merges = []
     word_counts = Counter()
 
     for token in special_tokens:
         vocab[next_id] = token.encode("utf-8")
         next_id += 1
+
+    for i in range(256):
+        if i >= 32 and i <= 126:  # ASCII printable
+            vocab[next_id] = bytes([i])
+            next_id += 1
+        elif i in [9, 10, 13]:  # Tab, newline, carriage return
+            vocab[next_id] = bytes([i])
+            next_id += 1
 
     special_token_pattern = "|".join([re.escape(token) for token in special_tokens])
     PAT_RE   = re.compile(PAT.encode("utf-8"))
@@ -140,14 +147,20 @@ def train_bpe(
     return vocab, merges 
 
 if __name__ == "__main__":
+    import json
+    SPACE_CHAR = '\u0120'
     text_dir = "data"
-    filepath = "TinyStoriesV2-GPT4-train.txt"
+    filepath = "TinyStoriesV2-GPT4-valid.txt"
     vocab, merges = train_bpe(f"{text_dir}/{filepath}", 10000, ["<|endoftext|>"])
-    with open(f"{filepath.split('.')[0]}.vocab.txt", "w") as f:
-        for k, v in vocab.items():
-            f.write(f"{k}: {v}\n")
+    with open(f'{filepath.split('.')[0]}.vocab.json', 'w') as fp:
+        json.dump({v.decode(errors='replace').replace(" ", SPACE_CHAR) : k for k, v in vocab.items()}, 
+                  fp,
+                  indent=4,
+                  ensure_ascii=False
+                  )
 
     with open(f"{filepath.split('.')[0]}.merges.txt", "w") as f:
         for merge in merges:
-            f.write(f"{merge[0]} {merge[1]}\n")
-
+            token1 = merge[0].decode(errors='replace').replace(" ", SPACE_CHAR)
+            token2 = merge[1].decode(errors='replace').replace(" ", SPACE_CHAR)
+            f.write(f"{token1} {token2}\n")
