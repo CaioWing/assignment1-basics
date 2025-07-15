@@ -150,7 +150,7 @@ if __name__ == "__main__":
     import json
     SPACE_CHAR = '\u0120'
     text_dir = "data"
-    filepath = "TinyStoriesV2-GPT4-valid.txt"
+    filepath = "TinyStoriesV2-GPT4-train.txt"
     vocab, merges = train_bpe(f"{text_dir}/{filepath}", 10000, ["<|endoftext|>"])
     with open(f'{filepath.split('.')[0]}.vocab.json', 'w') as fp:
         json.dump({v.decode(errors='replace').replace(" ", SPACE_CHAR) : k for k, v in vocab.items()}, 
