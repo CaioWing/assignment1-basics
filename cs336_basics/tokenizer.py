@@ -36,12 +36,12 @@ class Tokenizer:
             special_tokens: list[str] | None = None
         """
         with open(vocab_filepath, "rb") as f:
-            vocab = {k : v for v, k in json.load(f).items()}
+            vocab = {v : k for v, k in json.load(f).items()}
         
         if special_tokens:
             idx = len(vocab)
             for s_t in special_tokens:
-                vocab[idx] = s_t
+                vocab[s_t] = idx
                 idx += 1
 
         with open(merges_filepath) as f:
@@ -77,7 +77,7 @@ class Tokenizer:
                         new_word.append(word[idx])
                         idx += 1
                 if word == tuple(new_word):
-                    encode.extend([encoding_vocab[token] for token in new_word])
+                    encode.extend([encoding_vocab[token.encode()] for token in new_word])
                     break
                 else:
                     word = tuple(new_word.copy())
@@ -90,13 +90,13 @@ class Tokenizer:
         memory-efficient tokenization of large files that we cannot 
         directly load into memory.
         """
-        return NotImplemented
+        return "".join([self.encode(out) for out in iterable])
     
     def decode(self, ids: list[int]) -> str:
         """
         Decode a sequence of token IDs into text
         """
-        return NotImplemented
+        return "".join([self.vocab[i].decode() for i in ids]).replace(self.SPACE_CHAR, " ")
 
 if __name__ == "__main__":
     from cs336_basics.train_bpe import train_bpe
@@ -108,5 +108,6 @@ if __name__ == "__main__":
         "TinyStoriesV2-GPT4-train.merges.txt"
         )
     
-    test = tokenizer.encode("ay That's a time when I was young that everything was different, I dont recognize anymore")
+    encoding = tokenizer.encode("ay That's a time when I was young that everything was different, I dont recognize anymore")
+    decoding = tokenizer.decode(encoding)
     breakpoint()
