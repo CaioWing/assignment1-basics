@@ -58,29 +58,36 @@ class Tokenizer:
         """
         encoding_vocab = {v: k for k, v in self.vocab.items()}
         if self.SPECIAL_TOKEN_PAT:
-            text = self.SPECIAL_TOKEN_PAT.split(text)
+            text = " ".join(self.SPECIAL_TOKEN_PAT.split(text))
 
         words = self.PRE_TOKENIZATION.findall(text)
         encode = []
 
         for word in words:
-            word = word.replace(' ', self.SPACE_CHAR)
-            new_word = []
-            idx = 0
-            
+            b_word = [bytes([b]) for b in word.encode()]
             while True:
-                while idx < len(word):
-                    if idx < len(word) - 1 and (word[idx], word[idx + 1]) in self.merges:
-                        new_word.append((word[idx] + word[idx + 1]))
-                        idx += 2
+                idx = 0
+                new_word = []
+                while idx < len(b_word):
+                    i_token = b_word[idx]
+                    if idx < len(b_word) - 1:
+                        f_token = b_word[idx + 1]
+                        if (i_token + f_token) in self.vocab.values():
+                            new_word.append((i_token + f_token))
+                            idx += 2
+                        else:
+                            new_word.append(i_token)
+                            idx += 1
                     else:
-                        new_word.append(word[idx])
+                        new_word.append(i_token)
                         idx += 1
-                if word == tuple(new_word):
-                    encode.extend([encoding_vocab[token.encode()] for token in new_word])
+                if b_word == tuple(new_word):
+                    for token in new_word:
+                        encode.append(encoding_vocab[token])
                     break
                 else:
-                    word = tuple(new_word.copy())
+                    breakpoint()
+                    b_word = tuple(new_word.copy())
         return encode
     
     def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
@@ -96,7 +103,16 @@ class Tokenizer:
         """
         Decode a sequence of token IDs into text
         """
-        return "".join([self.vocab[i].decode() for i in ids]).replace(self.SPACE_CHAR, " ")
+        if len(ids) == 0:
+            return ""
+
+        idx = 0
+        b_string = self.vocab[ids[idx]]
+        idx += 1
+        while idx < len(ids):
+            b_string += self.vocab[ids[idx]]
+            idx += 1
+        return b_string.decode().replace(self.SPACE_CHAR, " ")
 
 if __name__ == "__main__":
     from cs336_basics.train_bpe import train_bpe
