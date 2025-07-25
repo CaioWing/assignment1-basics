@@ -21,8 +21,8 @@ class Tokenizer:
 
         self.SPACE_CHAR = '\u0120'
         self.PRE_TOKENIZATION = re.compile(r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""")
-        self.SPECIAL_TOKEN_PAT= re.compile("|".join([re.escape(token) for token in special_tokens])) if special_tokens else None   
-
+        self.SPECIAL_TOKEN_PAT= re.compile(f"({'|'.join(re.escape(token) for token in special_tokens)})") if special_tokens else None
+        
     @classmethod
     def from_files(cls, vocab_filepath, merges_filepath, special_tokens=None):
         """
@@ -57,37 +57,51 @@ class Tokenizer:
         Encode an input text into a sequence of token IDs.
         """
         encoding_vocab = {v: k for k, v in self.vocab.items()}
-        if self.SPECIAL_TOKEN_PAT:
-            text = " ".join(self.SPECIAL_TOKEN_PAT.split(text))
-
-        words = self.PRE_TOKENIZATION.findall(text)
+        special_tokens = None
         encode = []
+        
+        if self.SPECIAL_TOKEN_PAT:
+            special_tokens = set(self.SPECIAL_TOKEN_PAT.findall(text))
+            result = [item for item in self.SPECIAL_TOKEN_PAT.split(text) if item]
+        else:
+            result = [text]
 
-        for word in words:
-            b_word = [bytes([b]) for b in word.encode()]
-            while True:
-                idx = 0
-                new_word = []
-                while idx < len(b_word):
-                    i_token = b_word[idx]
-                    if idx < len(b_word) - 1:
-                        f_token = b_word[idx + 1]
-                        if (i_token + f_token) in self.vocab.values():
-                            new_word.append((i_token + f_token))
-                            idx += 2
+        for sentence in result:
+            if special_tokens:
+                if sentence in special_tokens:
+                    encode.append(encoding_vocab[sentence.encode()])
+                    continue 
+
+            for word in self.PRE_TOKENIZATION.findall(sentence):
+                b_word = [bytes([b]) for b in word.encode()]
+                while True:
+                    idx = 0
+                    new_word = []
+                    
+                    if special_tokens:
+                        if word in special_tokens:
+                            encode.append(encoding_vocab[word.encode()])
+                            break
+
+                    while idx < len(b_word):
+                        i_token = b_word[idx]
+                        if idx < len(b_word) - 1:
+                            f_token = b_word[idx + 1]
+                            if (i_token + f_token) in self.vocab.values():
+                                new_word.append((i_token + f_token))
+                                idx += 2
+                            else:
+                                new_word.append(i_token)
+                                idx += 1
                         else:
                             new_word.append(i_token)
                             idx += 1
+                    if b_word == tuple(new_word):
+                        for token in new_word:
+                            encode.append(encoding_vocab[token])
+                        break
                     else:
-                        new_word.append(i_token)
-                        idx += 1
-                if b_word == tuple(new_word):
-                    for token in new_word:
-                        encode.append(encoding_vocab[token])
-                    break
-                else:
-                    breakpoint()
-                    b_word = tuple(new_word.copy())
+                        b_word = tuple(new_word.copy())
         return encode
     
     def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
