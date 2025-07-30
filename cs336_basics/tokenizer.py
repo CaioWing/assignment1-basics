@@ -21,8 +21,13 @@ class Tokenizer:
 
         self.SPACE_CHAR = '\u0120'
         self.PRE_TOKENIZATION = re.compile(r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""")
-        self.SPECIAL_TOKEN_PAT= re.compile(f"({'|'.join(re.escape(token) for token in special_tokens)})") if special_tokens else None
         
+        if special_tokens:
+            sorted_special_tokens = sorted(special_tokens, key=len, reverse=True)
+            escaped_tokens = [re.escape(token) for token in sorted_special_tokens]
+            self.SPECIAL_TOKEN_PAT = re.compile(f"({'|'.join(escaped_tokens)})")
+        else:
+            self.SPECIAL_TOKEN_PAT = None        
     @classmethod
     def from_files(cls, vocab_filepath, merges_filepath, special_tokens=None):
         """
@@ -57,7 +62,7 @@ class Tokenizer:
         Encode an input text into a sequence of token IDs.
         """
         encoding_vocab = {v: k for k, v in self.vocab.items()}
-        special_tokens = None
+        special_tokens = set()
         encode = []
         
         if self.SPECIAL_TOKEN_PAT:
@@ -67,41 +72,39 @@ class Tokenizer:
             result = [text]
 
         for sentence in result:
-            if special_tokens:
-                if sentence in special_tokens:
-                    encode.append(encoding_vocab[sentence.encode()])
-                    continue 
+            if sentence in special_tokens:
+                encode.append(encoding_vocab[sentence.encode()])
+                continue 
 
             for word in self.PRE_TOKENIZATION.findall(sentence):
-                b_word = [bytes([b]) for b in word.encode()]
-                while True:
-                    idx = 0
-                    new_word = []
+                tokens = [bytes([b]) for b in word.encode()]
+                
+                # Aplica merges até não haver mais merges possíveis
+                while len(tokens) > 1:
+                    merged = False
                     
-                    if special_tokens:
-                        if word in special_tokens:
-                            encode.append(encoding_vocab[word.encode()])
-                            break
-
-                    while idx < len(b_word):
-                        i_token = b_word[idx]
-                        if idx < len(b_word) - 1:
-                            f_token = b_word[idx + 1]
-                            if (i_token + f_token) in self.vocab.values():
-                                new_word.append((i_token + f_token))
-                                idx += 2
-                            else:
-                                new_word.append(i_token)
-                                idx += 1
-                        else:
-                            new_word.append(i_token)
-                            idx += 1
-                    if b_word == tuple(new_word):
-                        for token in new_word:
-                            encode.append(encoding_vocab[token])
+                    # Percorre a lista de merges em ordem de prioridade
+                    for merge_pair in self.merges:
+                        # Procura esse par específico nos tokens adjacentes
+                        for i in range(len(tokens) - 1):
+                            if (tokens[i], tokens[i + 1]) == merge_pair:
+                                # Aplica o merge
+                                merged_token = tokens[i] + tokens[i + 1]
+                                tokens = tokens[:i] + [merged_token] + tokens[i + 2:]
+                                merged = True
+                                break
+                        
+                        if merged:
+                            break  # Sai do loop de merges e recomeça
+                    
+                    # Se não conseguiu fazer nenhum merge, para
+                    if not merged:
                         break
-                    else:
-                        b_word = tuple(new_word.copy())
+                
+                # Converte tokens finais para IDs
+                for token in tokens:
+                    encode.append(encoding_vocab[token])
+        
         return encode
     
     def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
@@ -111,7 +114,10 @@ class Tokenizer:
         memory-efficient tokenization of large files that we cannot 
         directly load into memory.
         """
-        return "".join([self.encode(out) for out in iterable])
+        encoding = []
+        for out in iterable:
+            encoding.extend(self.encode(out))
+        return encoding
     
     def decode(self, ids: list[int]) -> str:
         """
@@ -126,7 +132,7 @@ class Tokenizer:
         while idx < len(ids):
             b_string += self.vocab[ids[idx]]
             idx += 1
-        return b_string.decode().replace(self.SPACE_CHAR, " ")
+        return b_string.decode(errors='replace').replace(self.SPACE_CHAR, " ")
 
 if __name__ == "__main__":
     from cs336_basics.train_bpe import train_bpe
