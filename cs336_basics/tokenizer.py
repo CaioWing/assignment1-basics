@@ -79,29 +79,28 @@ class Tokenizer:
             for word in self.PRE_TOKENIZATION.findall(sentence):
                 tokens = [bytes([b]) for b in word.encode()]
                 
-                # Aplica merges até não haver mais merges possíveis
+                # Apply all the possible merges
                 while len(tokens) > 1:
                     merged = False
                     
-                    # Percorre a lista de merges em ordem de prioridade
+                    # Run through all the merges in order
                     for merge_pair in self.merges:
-                        # Procura esse par específico nos tokens adjacentes
+                        # Look for a specific merge pair
                         for i in range(len(tokens) - 1):
                             if (tokens[i], tokens[i + 1]) == merge_pair:
-                                # Aplica o merge
+                                # Apply merge
                                 merged_token = tokens[i] + tokens[i + 1]
                                 tokens = tokens[:i] + [merged_token] + tokens[i + 2:]
                                 merged = True
                                 break
                         
                         if merged:
-                            break  # Sai do loop de merges e recomeça
-                    
-                    # Se não conseguiu fazer nenhum merge, para
+                            break # If the merge is applied, just look for another one
+
+                    # If any merge is avaiable, the str is already fully encoded
                     if not merged:
                         break
-                
-                # Converte tokens finais para IDs
+
                 for token in tokens:
                     encode.append(encoding_vocab[token])
         
