@@ -113,7 +113,7 @@ class Tokenizer:
         memory-efficient tokenization of large files that we cannot 
         directly load into memory.
         """
-        encoding = []
+        encoding : Iterator[int] = []
         for out in iterable:
             encoding.extend(self.encode(out))
         return encoding
