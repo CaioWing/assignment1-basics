@@ -52,8 +52,10 @@ def run_embedding(
     Returns:
         Float[Tensor, "... d_model"]: Batch of embeddings returned by your Embedding layer.
     """
-
-    raise NotImplementedError
+    from cs336_basics.embedding_module import Embedding
+    embedding_module = Embedding(num_embeddings=vocab_size, embedding_dim=d_model)
+    embedding_module.weights = torch.nn.Parameter(weights)
+    return embedding_module(token_ids)
 
 
 def run_swiglu(
@@ -380,7 +382,10 @@ def run_rmsnorm(
         Float[Tensor,"... d_model"]: Tensor of with the same shape as `in_features` with the output of running
         RMSNorm of the `in_features`.
     """
-    raise NotImplementedError
+    from cs336_basics.rmsnorm_module import RMSNorm
+    rmsnorm_module = RMSNorm(d_model=d_model, eps=eps)
+    rmsnorm_module.weights = torch.nn.Parameter(weights)
+    return rmsnorm_module(in_features)
 
 
 def run_silu(in_features: Float[Tensor, " ..."]) -> Float[Tensor, " ..."]:
