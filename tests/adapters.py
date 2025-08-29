@@ -29,7 +29,7 @@ def run_linear(
         Float[Tensor, "... d_out"]: The transformed output of your linear module.
     """
 
-    from cs336_basics.linear_module import Linear
+    from cs336_basics.modules.linear import Linear
     linear_module = Linear(in_features=d_in, out_features=d_out)
     linear_module.weights = torch.nn.Parameter(weights)
     return linear_module.forward(in_features)
@@ -52,7 +52,7 @@ def run_embedding(
     Returns:
         Float[Tensor, "... d_model"]: Batch of embeddings returned by your Embedding layer.
     """
-    from cs336_basics.embedding_module import Embedding
+    from cs336_basics.modules.embedding import Embedding
     embedding_module = Embedding(num_embeddings=vocab_size, embedding_dim=d_model)
     embedding_module.weights = torch.nn.Parameter(weights)
     return embedding_module(token_ids)
@@ -382,7 +382,7 @@ def run_rmsnorm(
         Float[Tensor,"... d_model"]: Tensor of with the same shape as `in_features` with the output of running
         RMSNorm of the `in_features`.
     """
-    from cs336_basics.rmsnorm_module import RMSNorm
+    from cs336_basics.modules.rmsnorm import RMSNorm
     rmsnorm_module = RMSNorm(d_model=d_model, eps=eps)
     rmsnorm_module.weights = torch.nn.Parameter(weights)
     return rmsnorm_module(in_features)
